@@ -202,8 +202,11 @@ GENERATE_RECEIPT = _tool(
 GENERATE_FORM = _tool(
     "generate_form_pdf",
     "Generate a financial form PDF. form_type is 'financial_acknowledgement' or "
-    "'financial_resolution'. fields is a flat object of label -> value pairs that "
-    "will be printed in the form body. Returns a document_id for emailing.",
+    "'financial_resolution'. fields is a flat object of the form's data — pass "
+    "the input field names verbatim as keys (e.g. service_description, "
+    "total_charges, payment_terms) so they map onto the practice's form "
+    "template placeholders. Format money values with $ and separators. "
+    "Returns a document_id for emailing.",
     {"form_type": {"type": "string",
                    "enum": ["financial_acknowledgement", "financial_resolution"]},
      "patient_name": {"type": "string"},

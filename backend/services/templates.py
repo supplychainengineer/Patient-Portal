@@ -64,6 +64,83 @@ DEFAULT_TEMPLATES = [
 ]
 
 
+def _form_document(title: str, intro: str, rows: list[tuple[str, str]]) -> str:
+    """Default HTML layout for a form *document* (rendered to the PDF).
+    Replace it wholesale via 'Import HTML file' on the Templates page —
+    keep layout table-based with inline styles (the PDF renderer does not
+    support flexbox/grid)."""
+    row_html = "".join(
+        f'<tr><td style="background:#f0fdfa;border:1px solid #d6d3cb;padding:8px 10px;'
+        f'font-weight:bold;width:38%;">{label}</td>'
+        f'<td style="border:1px solid #d6d3cb;padding:8px 10px;">{{{{{key}}}}}</td></tr>'
+        for label, key in rows
+    )
+    return f"""<html><body style="font-family:Helvetica,Arial,sans-serif;color:#1f2937;font-size:11pt;">
+<table width="100%" cellpadding="0" cellspacing="0">
+  <tr><td style="border-bottom:3px solid #0f766e;padding-bottom:10px;">
+    <span style="font-size:20pt;font-weight:bold;">{{{{clinic_name}}}}</span><br/>
+    <span style="font-size:9pt;color:#555;">{{{{clinic_address}}}} · {{{{clinic_phone}}}} · {{{{clinic_email}}}}</span>
+  </td></tr>
+</table>
+<h2 style="font-size:13pt;letter-spacing:2px;color:#0f766e;margin:18px 0 2px 0;">{title}</h2>
+<p style="font-size:9pt;color:#555;margin:0 0 14px 0;">Document #: {{{{form_no}}}} &nbsp;|&nbsp; Date: {{{{date}}}}</p>
+<p><b>Patient:</b> {{{{patient_name}}}}</p>
+<p style="margin:10px 0 16px 0;">{intro}</p>
+<table width="100%" cellpadding="0" cellspacing="0" style="font-size:10.5pt;">{row_html}</table>
+<br/><br/><br/>
+<table width="100%" cellpadding="0" cellspacing="0" style="font-size:9pt;color:#555;">
+  <tr>
+    <td width="45%" style="border-top:1px solid #333;padding-top:4px;">Patient signature</td>
+    <td width="10%"></td>
+    <td width="45%" style="border-top:1px solid #333;padding-top:4px;">Date</td>
+  </tr>
+  <tr><td colspan="3" style="height:36px;"></td></tr>
+  <tr>
+    <td style="border-top:1px solid #333;padding-top:4px;">Practice representative</td>
+    <td></td>
+    <td style="border-top:1px solid #333;padding-top:4px;">Date</td>
+  </tr>
+</table>
+</body></html>"""
+
+
+DEFAULT_TEMPLATES += [
+    {
+        "key": "financial_acknowledgement_form",
+        "name": "Financial Acknowledgement Form (document)",
+        "subject": "FINANCIAL ACKNOWLEDGEMENT FORM",  # used as the document title
+        "html_body": _form_document(
+            "FINANCIAL ACKNOWLEDGEMENT FORM",
+            "I, the undersigned, acknowledge my financial responsibility for "
+            "services rendered by the practice as detailed below. I understand "
+            "and accept the charges, payment terms and policies described in "
+            "this document.",
+            [("Service / Treatment", "service_description"),
+             ("Total Charges", "total_charges"),
+             ("Payment Terms", "payment_terms"),
+             ("Insurance Details", "insurance_details"),
+             ("Effective Date", "effective_date")],
+        ),
+    },
+    {
+        "key": "financial_resolution_form",
+        "name": "Financial Resolution Form (document)",
+        "subject": "FINANCIAL RESOLUTION FORM",
+        "html_body": _form_document(
+            "FINANCIAL RESOLUTION FORM",
+            "This document records the mutually agreed resolution of the "
+            "outstanding financial balance detailed below, including the agreed "
+            "settlement terms and payment schedule.",
+            [("Original Outstanding Balance", "original_balance"),
+             ("Resolution Type", "resolution_type"),
+             ("Agreed Amount", "settlement_amount"),
+             ("Payment Schedule", "payment_schedule"),
+             ("Conditions", "conditions")],
+        ),
+    },
+]
+
+
 def seed_templates():
     for tpl in DEFAULT_TEMPLATES:
         if not db.templates.find_one({"key": tpl["key"]}):

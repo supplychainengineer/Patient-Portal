@@ -1,6 +1,13 @@
-"""PDF generation for receipts and financial forms (reportlab).
+"""PDF generation for receipts and financial forms.
 Each generated document is stored under backend/storage and indexed in the
-`documents` collection so the UI can list and download it."""
+`documents` collection so the UI can list and download it.
+
+Forms are template-driven: if a document template exists in the `templates`
+collection (keys `financial_acknowledgement_form` / `financial_resolution_form`
+— editable and importable on the Templates page), its HTML is filled with the
+form data and rendered to PDF. Otherwise a built-in reportlab layout is used."""
+import logging
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -119,14 +126,78 @@ FORM_INTROS = {
 }
 
 
+logger = logging.getLogger("patient-portal.pdf")
+
+_PLACEHOLDER = re.compile(r"\{\{\s*([a-zA-Z0-9_ ]+)\s*\}\}")
+
+
+def _fill_placeholders(html: str, context: dict) -> str:
+    """Deterministically substitute {{placeholders}}; unknown ones become an
+    em dash so a designed form never ships with raw template syntax."""
+    normalized = {str(k).strip().lower().replace(" ", "_"): str(v)
+                  for k, v in context.items() if v not in (None, "")}
+
+    def sub(match):
+        key = match.group(1).strip().lower().replace(" ", "_")
+        return normalized.get(key, "—")
+
+    return _PLACEHOLDER.sub(sub, html)
+
+
+def _render_html_form(form_type: str, patient_name: str, fields: dict,
+                      form_no: str, path) -> bool:
+    """Render the user's HTML document template to PDF. Returns False when no
+    template exists or rendering fails (caller falls back to reportlab)."""
+    tpl = db.templates.find_one({"key": f"{form_type}_form"}, {"_id": 0})
+    if not tpl or not tpl.get("html_body"):
+        return False
+    try:
+        from xhtml2pdf import pisa
+    except ImportError:
+        logger.warning("xhtml2pdf not installed — using built-in form layout.")
+        return False
+
+    context = {
+        **fields,
+        "patient_name": patient_name,
+        "form_no": form_no,
+        "date": datetime.now(timezone.utc).strftime("%B %d, %Y"),
+        "clinic_name": config.CLINIC_NAME,
+        "clinic_address": config.CLINIC_ADDRESS,
+        "clinic_phone": config.CLINIC_PHONE,
+        "clinic_email": config.CLINIC_EMAIL,
+    }
+    html = _fill_placeholders(tpl["html_body"], context)
+    try:
+        with open(path, "wb") as fh:
+            result = pisa.CreatePDF(html, dest=fh)
+        if result.err:
+            raise RuntimeError(f"{result.err} rendering error(s)")
+        return True
+    except Exception as exc:
+        logger.warning("HTML form template for %s failed to render (%s) — "
+                       "using built-in layout.", form_type, exc)
+        path.unlink(missing_ok=True)
+        return False
+
+
 def generate_form(form_type: str, patient_name: str, fields: dict,
                   patient_id: str = None, run_id: str = None) -> dict:
-    """fields: ordered dict of label -> value collected from the portal form."""
+    """fields: flat dict of the form's input values, keyed by field name
+    (e.g. service_description, total_charges)."""
     if form_type not in FORM_TITLES:
         raise ValueError(f"Unknown form type: {form_type}")
     form_no = f"{'FAF' if form_type == 'financial_acknowledgement' else 'FRF'}-" \
               f"{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
     path = config.STORAGE_DIR / f"{form_no}.pdf"
+
+    if _render_html_form(form_type, patient_name, fields, form_no, path):
+        return _register(form_type,
+                         f"{FORM_TITLES[form_type].title()} {form_no} — {patient_name}",
+                         path, patient_id=patient_id, patient_name=patient_name,
+                         run_id=run_id,
+                         meta={"form_no": form_no, "fields": fields,
+                               "rendered_from": f"{form_type}_form template"})
     pdf = SimpleDocTemplate(str(path), pagesize=LETTER,
                             topMargin=0.7 * inch, bottomMargin=0.7 * inch)
     el = []
@@ -136,7 +207,8 @@ def generate_form(form_type: str, patient_name: str, fields: dict,
     el.append(Paragraph(FORM_INTROS[form_type], _body))
     el.append(Spacer(1, 12))
 
-    rows = [[Paragraph(f"<b>{label}</b>", _body), Paragraph(str(value), _body)]
+    rows = [[Paragraph(f"<b>{str(label).replace('_', ' ').title()}</b>", _body),
+             Paragraph(str(value), _body)]
             for label, value in fields.items() if value not in (None, "")]
     if rows:
         table = Table(rows, colWidths=[2.4 * inch, 4.1 * inch])

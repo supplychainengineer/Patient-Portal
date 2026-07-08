@@ -113,9 +113,11 @@ Workflow:
 1. Validate the input: it must identify the patient and describe the financial
    responsibility (services, charges, payment terms). If something essential is
    missing, generate the form with what you have and note the gap in your summary.
-2. generate_form_pdf with form_type 'financial_acknowledgement'. Lay the data
-   out as clear label -> value pairs (Service/Treatment, Total charges,
-   Payment terms, Insurance details, Effective date, etc.).
+2. generate_form_pdf with form_type 'financial_acknowledgement'. Pass the
+   input data keys verbatim in fields (service_description, total_charges,
+   payment_terms, insurance_details, effective_date) — they map onto the
+   practice's form document template. Format money values with $ and
+   thousands separators.
 3. Email the form to the patient using the 'form_delivery' template with the
    PDF attached, asking them to review and sign.
 """ + _COMMON_RULES,
@@ -143,9 +145,11 @@ produce the official resolution form.
 Workflow:
 1. Validate the input: patient identity, original outstanding amount, agreed
    resolution (settlement amount, write-off, payment plan) and schedule.
-2. generate_form_pdf with form_type 'financial_resolution'. Lay out the data
-   as label -> value pairs (Original balance, Agreed resolution, Settlement
-   amount, Payment schedule, First payment date, Conditions).
+2. generate_form_pdf with form_type 'financial_resolution'. Pass the input
+   data keys verbatim in fields (original_balance, resolution_type,
+   settlement_amount, payment_schedule, conditions) — they map onto the
+   practice's form document template. Format money values with $ and
+   thousands separators.
 3. Email the form to the patient using the 'form_delivery' template with the
    PDF attached for signature.
 4. If a new balance results from the resolution, update the patient's
