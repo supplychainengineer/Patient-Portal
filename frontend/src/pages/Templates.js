@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Save } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { Save, Upload } from "lucide-react";
 import { api, errMessage } from "../api";
 import { Button, Card, Field, inputCls, Notice } from "../components/Ui";
 
@@ -8,6 +8,25 @@ export default function Templates() {
   const [active, setActive] = useState(null);
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
+  const fileInput = useRef(null);
+
+  const importHtml = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setActive({ ...active, html_body: String(reader.result) });
+      setNotice({
+        tone: "ok",
+        text: `Imported ${file.name} (${Math.round(file.size / 1024)} KB). ` +
+              "Review the preview below, then hit Save template. " +
+              "Tip: swap dynamic spots (patient name, fees, dates) for {{placeholders}} " +
+              "so the agent can personalize each send.",
+      });
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+  };
 
   useEffect(() => {
     api.get("/templates").then((r) => {
@@ -64,15 +83,23 @@ export default function Templates() {
                      onChange={(e) => setActive({ ...active, subject: e.target.value })} />
             </Field>
             <Field label="HTML body"
-                   hint="Placeholders: {{patient_name}}, {{clinic_name}}, {{clinic_phone}}, {{clinic_email}}, {{amount_paid}}, {{balance_due}}, {{form_name}}">
+                   hint={"Placeholders: {{patient_name}}, {{clinic_name}}, {{clinic_phone}}, {{clinic_email}}, {{amount_paid}}, {{balance_due}}, {{form_name}} — plus for onboarding: " +
+                         "{{treatment_plan}}, {{estimated_duration}}, {{total_contract_fee}}, {{down_payment}}, {{remaining_balance}}, {{monthly_amount}}, {{num_payments}}, {{first_due_date}}, {{payment_method}}, {{final_payment}}"}>
               <textarea className={`${inputCls} font-mono text-xs`} rows={14}
                         value={active.html_body}
                         onChange={(e) => setActive({ ...active, html_body: e.target.value })} />
             </Field>
             <div className="flex items-center justify-between">
-              <Button onClick={save} disabled={busy}>
-                <Save size={14} /> {busy ? "Saving..." : "Save template"}
-              </Button>
+              <div className="flex gap-2">
+                <Button onClick={save} disabled={busy}>
+                  <Save size={14} /> {busy ? "Saving..." : "Save template"}
+                </Button>
+                <Button variant="secondary" onClick={() => fileInput.current?.click()}>
+                  <Upload size={14} /> Import HTML file
+                </Button>
+                <input ref={fileInput} type="file" accept=".html,.htm,text/html"
+                       className="hidden" onChange={importHtml} />
+              </div>
               <span className="text-xs text-slate-400">key: {active.key}</span>
             </div>
             <div className="mt-5 border-t border-slate-100 pt-4">

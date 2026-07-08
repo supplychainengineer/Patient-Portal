@@ -13,9 +13,16 @@ DEFAULT_TEMPLATES = [
         "subject": "Welcome to {{clinic_name}}, {{patient_name}}!",
         "html_body": (
             "<p>Hi {{patient_name}},</p>"
-            "<p><em>[BUILD YOUR ONBOARDING TEMPLATE HERE — this is a placeholder. "
-            "Edit it on the Templates page. Available placeholders: {{patient_name}}, "
-            "{{clinic_name}}, {{clinic_phone}}, {{clinic_email}}]</em></p>"
+            "<p><em>[YOUR ONBOARDING TEMPLATE GOES HERE — use the \"Import HTML "
+            "file\" button on the Templates page to load your designed email "
+            "(e.g. asana_ortho_welcome.html), or paste the HTML into the editor. "
+            "Put {{placeholders}} wherever the agent should substitute values: "
+            "{{patient_name}}, {{clinic_name}}, {{clinic_phone}}, {{clinic_email}}, "
+            "{{treatment_plan}}, {{estimated_duration}}, {{total_contract_fee}}, "
+            "{{down_payment}}, {{remaining_balance}}, {{monthly_amount}}, "
+            "{{num_payments}}, {{first_due_date}}, {{payment_method}}, "
+            "{{final_payment}}. Values the agent isn't given render as an em "
+            "dash (—).]</em></p>"
             "<p>Welcome aboard!<br/>{{clinic_name}}</p>"
         ),
     },

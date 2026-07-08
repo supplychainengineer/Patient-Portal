@@ -128,9 +128,25 @@ def _run_onboarding(event: str, patient_id: str, extra: dict):
         raise HTTPException(400, str(exc))
 
 
+class OnboardDetails(BaseModel):
+    """Values for the onboarding template's treatment/financial placeholders.
+    Everything is optional — missing values render as an em dash."""
+    treatment_plan: str | None = None
+    estimated_duration: str | None = None
+    total_contract_fee: float | None = None
+    down_payment: float | None = None
+    monthly_amount: float | None = None
+    num_payments: int | None = None
+    first_due_date: str | None = None
+    payment_method: str | None = None
+    notes: str | None = None
+
+
 @router.post("/{patient_id}/onboard")
-def onboard(patient_id: str):
-    return _run_onboarding("onboard", patient_id, {})
+def onboard(patient_id: str, body: OnboardDetails | None = None):
+    extra = {k: v for k, v in (body.model_dump() if body else {}).items()
+             if v not in (None, "")}
+    return _run_onboarding("onboard", patient_id, extra)
 
 
 class ContractSigned(BaseModel):

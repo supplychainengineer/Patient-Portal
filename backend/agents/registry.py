@@ -171,10 +171,19 @@ ONBOARDING_AGENT = AgentSpec(
     description="Sends the new-patient onboarding email from your template, and sends a receipt when a contract is signed.",
     system_prompt="""You are the Onboarding Agent. You handle two events:
 
-EVENT 'onboard' — a new patient joined:
+EVENT 'onboard' — a new patient joined (contract signed, care plan in place):
 1. get_patient for their record.
 2. Fetch the 'onboarding' template (built by the practice), fill every
-   placeholder, and send_email. Do not rewrite the template's wording.
+   placeholder, and send_email. Do not rewrite the template's wording, layout
+   or styling — it is a designed HTML email; only substitute values.
+   Financial placeholders ({{treatment_plan}}, {{estimated_duration}},
+   {{total_contract_fee}}, {{down_payment}}, {{remaining_balance}},
+   {{monthly_amount}}, {{num_payments}}, {{first_due_date}},
+   {{payment_method}}, {{final_payment}}) come from the input data. Compute
+   {{remaining_balance}} as total_contract_fee - down_payment when not given.
+   Format money values with a $ sign and thousands separators. For any value
+   you are not given and cannot compute, substitute an em dash (—), never a
+   raw {{placeholder}} or a made-up number.
 3. update_patient: set status to 'onboarded' and onboarded_at to today (ISO date).
 
 EVENT 'contract_signed' — a patient signed their contract:
@@ -192,6 +201,14 @@ EVENT 'contract_signed' — a patient signed their contract:
         {"name": "event", "label": "Event", "type": "select",
          "options": ["onboard", "contract_signed"]},
         {"name": "patient_id", "label": "Patient", "type": "patient"},
+        {"name": "treatment_plan", "label": "Treatment plan", "type": "text", "optional": True},
+        {"name": "estimated_duration", "label": "Estimated duration", "type": "text", "optional": True},
+        {"name": "total_contract_fee", "label": "Total contract fee", "type": "number", "optional": True},
+        {"name": "down_payment", "label": "Down payment received", "type": "number", "optional": True},
+        {"name": "monthly_amount", "label": "Monthly payment", "type": "number", "optional": True},
+        {"name": "num_payments", "label": "Number of monthly payments", "type": "number", "optional": True},
+        {"name": "first_due_date", "label": "First payment due", "type": "date", "optional": True},
+        {"name": "payment_method", "label": "Payment method", "type": "text", "optional": True},
         {"name": "contract_amount", "label": "Contract payment amount (for contract_signed)",
          "type": "number", "optional": True},
         {"name": "notes", "label": "Notes (optional)", "type": "textarea", "optional": True},

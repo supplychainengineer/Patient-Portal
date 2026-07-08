@@ -15,6 +15,7 @@ export default function Patients() {
   const [receipt, setReceipt] = useState({ amount_paid: "", payment_method: "", payment_date: "", description: "" });
   const [zoho, setZoho] = useState({ worksheet_name: "", name_column: "Name", email_column: "Email", balance_column: "" });
   const [contract, setContract] = useState({ patient: null, contract_amount: "", notes: "" });
+  const [onboardData, setOnboardData] = useState({ patient: null });
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(null);
 
@@ -64,9 +65,17 @@ export default function Patients() {
     run(async () => (await api.post("/patients/sync-zoho", zoho)).data,
         (r) => `Zoho sync: ${r.created} created, ${r.updated} updated, ${r.skipped} skipped.`);
 
-  const onboard = (p) =>
-    run(async () => (await api.post(`/patients/${p.id}/onboard`)).data,
-        (r) => `Onboarding Agent finished (${r.status}). ${r.summary?.slice(0, 200) || ""}`);
+  const onboard = () =>
+    run(async () => {
+      const { patient, ...fields } = onboardData;
+      const body = {};
+      for (const [k, v] of Object.entries(fields)) {
+        if (v === "" || v === undefined) continue;
+        body[k] = ["total_contract_fee", "down_payment", "monthly_amount", "num_payments"]
+          .includes(k) ? Number(v) : v;
+      }
+      return (await api.post(`/patients/${patient.id}/onboard`, body)).data;
+    }, (r) => `Onboarding Agent finished (${r.status}). ${r.summary?.slice(0, 200) || ""}`);
 
   const contractSigned = () =>
     run(async () => (await api.post(`/patients/${contract.patient.id}/contract-signed`, {
@@ -142,8 +151,8 @@ export default function Patients() {
                     {Number(p.balance_due || 0).toLocaleString()}
                   </td>
                   <td className="py-2.5 text-right whitespace-nowrap">
-                    <button title="Send onboarding email" disabled={busy}
-                            onClick={() => onboard(p)}
+                    <button title="Send onboarding welcome email" disabled={busy}
+                            onClick={() => { setOnboardData({ patient: p }); setModal("onboard"); }}
                             className="text-brand-700 hover:bg-brand-50 rounded-md p-1.5">
                       <Send size={15} />
                     </button>
@@ -252,6 +261,56 @@ export default function Patients() {
               {busy ? "Syncing..." : "Sync now"}
             </Button>
           </div>
+        </Modal>
+      )}
+
+      {modal === "onboard" && onboardData.patient && (
+        <Modal title={`Onboarding welcome — ${onboardData.patient.name}`} onClose={() => setModal(null)} wide>
+          <Notice tone="info">
+            The Onboarding Agent sends your welcome template and fills in the
+            treatment &amp; payment details below. Anything left blank appears
+            as “—” in the email — exactly like your template's empty states.
+          </Notice>
+          <div className="mt-4 grid grid-cols-2 gap-x-4">
+            <Field label="Treatment plan">
+              <input className={inputCls} placeholder="e.g. Invisalign Comprehensive"
+                     value={onboardData.treatment_plan || ""}
+                     onChange={(e) => setOnboardData({ ...onboardData, treatment_plan: e.target.value })} />
+            </Field>
+            <Field label="Estimated duration">
+              <input className={inputCls} placeholder="e.g. 18 months"
+                     value={onboardData.estimated_duration || ""}
+                     onChange={(e) => setOnboardData({ ...onboardData, estimated_duration: e.target.value })} />
+            </Field>
+            <Field label="Total contract fee">
+              <input className={inputCls} type="number" value={onboardData.total_contract_fee || ""}
+                     onChange={(e) => setOnboardData({ ...onboardData, total_contract_fee: e.target.value })} />
+            </Field>
+            <Field label="Down payment received">
+              <input className={inputCls} type="number" value={onboardData.down_payment || ""}
+                     onChange={(e) => setOnboardData({ ...onboardData, down_payment: e.target.value })} />
+            </Field>
+            <Field label="Monthly payment">
+              <input className={inputCls} type="number" value={onboardData.monthly_amount || ""}
+                     onChange={(e) => setOnboardData({ ...onboardData, monthly_amount: e.target.value })} />
+            </Field>
+            <Field label="Number of monthly payments">
+              <input className={inputCls} type="number" value={onboardData.num_payments || ""}
+                     onChange={(e) => setOnboardData({ ...onboardData, num_payments: e.target.value })} />
+            </Field>
+            <Field label="First payment due">
+              <input className={inputCls} type="date" value={onboardData.first_due_date || ""}
+                     onChange={(e) => setOnboardData({ ...onboardData, first_due_date: e.target.value })} />
+            </Field>
+            <Field label="Payment method">
+              <input className={inputCls} placeholder="e.g. Card autopay"
+                     value={onboardData.payment_method || ""}
+                     onChange={(e) => setOnboardData({ ...onboardData, payment_method: e.target.value })} />
+            </Field>
+          </div>
+          <Button onClick={onboard} disabled={busy}>
+            {busy ? "Agent running..." : "Send welcome email"}
+          </Button>
         </Modal>
       )}
 
