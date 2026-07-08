@@ -101,12 +101,13 @@ def _send_email(ctx, to_email: str, subject: str, html_body: str,
 
 def _generate_receipt(ctx, patient_name: str, amount_paid: float, items: list = None,
                       payment_method: str = "", payment_date: str = "",
-                      balance_due: float = 0.0, notes: str = "", patient_id: str = None):
+                      balance_due: float = 0.0, notes: str = "", patient_id: str = None,
+                      extra: dict = None):
     doc = pdf.generate_receipt(
         patient_name=patient_name, items=items or [], amount_paid=amount_paid,
         payment_method=payment_method, payment_date=payment_date,
         balance_due=balance_due, notes=notes, patient_id=patient_id,
-        run_id=ctx.get("run_id"),
+        run_id=ctx.get("run_id"), extra=extra or {},
     )
     return {"document_id": doc["id"], "receipt_no": doc["meta"]["receipt_no"],
             "filename": doc["filename"]}
@@ -186,17 +187,26 @@ SEND_EMAIL = _tool(
 
 GENERATE_RECEIPT = _tool(
     "generate_receipt_pdf",
-    "Generate a payment receipt PDF for a patient. Returns a document_id that "
-    "can be attached to an email with send_email.",
+    "Generate a payment receipt PDF for a patient using the practice's receipt "
+    "document template (FSA/HSA receipt). Returns a document_id that can be "
+    "attached to an email with send_email. Pass every detail you know — "
+    "missing values render as an em dash.",
     {"patient_name": {"type": "string"},
-     "amount_paid": {"type": "number"},
+     "amount_paid": {"type": "number", "description": "Total amount paid"},
      "items": {"type": "array", "items": {"type": "object"},
-               "description": "Line items: [{description, amount}]"},
+               "description": "Payment history rows: [{description, date, amount}] "
+                              "— e.g. {description: 'Orthodontic Treatment', "
+                              "date: '01/20/2026', amount: 723.00}"},
      "payment_method": {"type": "string"},
      "payment_date": {"type": "string"},
      "balance_due": {"type": "number"},
      "notes": {"type": "string"},
-     "patient_id": {"type": "string"}},
+     "patient_id": {"type": "string"},
+     "extra": {"type": "object",
+               "description": "Receipt-template fields when known: "
+                              "service_description, contract_date, appliance_placed, "
+                              "responsible_party, patient_address, payment_type "
+                              "('Partial' or 'Full')"}},
     ["patient_name", "amount_paid"], _generate_receipt)
 
 GENERATE_FORM = _tool(

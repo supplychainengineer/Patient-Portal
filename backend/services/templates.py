@@ -104,7 +104,114 @@ def _form_document(title: str, intro: str, rows: list[tuple[str, str]]) -> str:
 </body></html>"""
 
 
+# The FSA/HSA receipt document, recreated from the practice's own receipt PDF
+# (ReceiptAO2026070108). {{items_rows}} is replaced with the payment-history
+# rows; every other {{placeholder}} is filled from the receipt data and the
+# clinic settings. Logo/signature load from backend/assets/.
+RECEIPT_DOCUMENT_HTML = """<html>
+<head><style>@page { size: letter; margin: 0; }</style></head>
+<body style="font-family:Helvetica,Arial,sans-serif;color:#1f2937;font-size:10pt;margin:0;">
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#12332a;">
+  <tr>
+    <td style="padding:10px 24px;" width="140">
+      <img src="{{assets_dir}}/asana_logo.png" width="117" height="44"/>
+    </td>
+    <td style="padding:10px 10px;color:#ffffff;font-size:14pt;font-weight:bold;">
+      {{clinic_legal_name}}
+    </td>
+    <td style="padding:10px 24px;text-align:right;color:#cfe3d8;">
+      <span style="font-size:8pt;letter-spacing:2px;font-weight:bold;">FSA / HSA RECEIPT</span><br/>
+      <span style="font-size:9pt;">{{receipt_no}}</span>
+    </td>
+  </tr>
+</table>
+<table width="100%" cellpadding="0" cellspacing="0">
+  <tr><td style="height:4px;background-color:#4b7f5f;font-size:1pt;">&nbsp;</td></tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;">
+  <tr>
+    <td style="padding:0 24px;color:#8aa39a;font-size:8pt;letter-spacing:2px;font-weight:bold;">DATE</td>
+    <td style="padding:0 24px;text-align:right;font-weight:bold;font-size:11pt;">{{date}}</td>
+  </tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:10px;">
+  <tr>
+    <td width="50%" style="padding:0 12px 0 24px;border-top:1px solid #e5e7e3;">
+      <p style="color:#8aa39a;font-size:8pt;letter-spacing:2px;font-weight:bold;margin:8px 0 3px 0;">PRACTICE INFORMATION</p>
+      <p style="font-weight:bold;margin:0 0 3px 0;">{{clinic_legal_name}}</p>
+      <p style="margin:0 0 3px 0;color:#374151;">{{clinic_address}}</p>
+      <p style="margin:0;color:#374151;">TIN: &nbsp;{{clinic_tin}}</p>
+    </td>
+    <td width="50%" style="padding:0 24px 0 12px;border-top:1px solid #e5e7e3;">
+      <p style="color:#8aa39a;font-size:8pt;letter-spacing:2px;font-weight:bold;margin:8px 0 3px 0;">PATIENT INFORMATION</p>
+      <p style="font-weight:bold;margin:0 0 3px 0;">{{patient_name}}</p>
+      <p style="margin:0 0 3px 0;color:#374151;">{{patient_address}}</p>
+      <p style="margin:0;color:#374151;">Responsible Party: &nbsp;{{responsible_party}}</p>
+    </td>
+  </tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
+  <tr><td colspan="3" style="padding:8px 24px 3px 24px;border-top:1px solid #e5e7e3;color:#8aa39a;font-size:8pt;letter-spacing:2px;font-weight:bold;">SERVICE DETAILS</td></tr>
+  <tr>
+    <td style="padding:2px 12px 0 24px;color:#8aa39a;font-size:8.5pt;">Service Description</td>
+    <td style="padding:2px 12px 0 12px;color:#8aa39a;font-size:8.5pt;">Contract Date</td>
+    <td style="padding:2px 24px 0 12px;color:#8aa39a;font-size:8.5pt;">Appliance Placed</td>
+  </tr>
+  <tr>
+    <td style="padding:2px 12px 0 24px;font-weight:bold;">{{service_description}}</td>
+    <td style="padding:2px 12px 0 12px;font-weight:bold;">{{contract_date}}</td>
+    <td style="padding:2px 24px 0 12px;font-weight:bold;">{{appliance_placed}}</td>
+  </tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
+  <tr><td style="padding:8px 24px 3px 24px;border-top:1px solid #e5e7e3;color:#8aa39a;font-size:8pt;letter-spacing:2px;font-weight:bold;">PAYMENT DETAILS</td></tr>
+  <tr><td style="padding:2px 24px 6px 24px;">This confirms that {{payment_type}} payment has been received for the qualified orthodontic services rendered to {{patient_name}}.</td></tr>
+</table>
+
+<table width="92%" align="center" cellpadding="0" cellspacing="0" style="border:1px solid #e5e7e3;">
+  <tr style="background-color:#f3f5f4;">
+    <td style="padding:6px 12px;color:#5b7f75;font-size:8pt;letter-spacing:1px;font-weight:bold;">DESCRIPTION</td>
+    <td style="padding:6px 12px;color:#5b7f75;font-size:8pt;letter-spacing:1px;font-weight:bold;">DATE OF PAYMENT</td>
+    <td style="padding:6px 12px;color:#5b7f75;font-size:8pt;letter-spacing:1px;font-weight:bold;text-align:right;">AMOUNT PAID</td>
+  </tr>
+  {{items_rows}}
+  <tr style="background-color:#eef2ef;">
+    <td colspan="2" style="padding:8px 12px;font-weight:bold;">TOTAL AMOUNT PAID</td>
+    <td style="padding:8px 12px;font-weight:bold;text-align:right;font-size:11pt;">{{total_amount_paid}}</td>
+  </tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;">
+  <tr><td style="padding:8px 24px 3px 24px;border-top:1px solid #e5e7e3;color:#8aa39a;font-size:8pt;letter-spacing:2px;font-weight:bold;">CERTIFICATION</td></tr>
+  <tr><td style="padding:2px 24px 0 24px;">I certify that the services listed above were provided on the date specified and that the payment covers the {{payment_type}} treatment fee.</td></tr>
+  <tr><td style="padding:6px 24px 0 24px;font-style:italic;color:#4b5563;font-size:9pt;">While services were initially rendered under Laurie M Estes DDS Inc., the practice has since transitioned to Dr. Nourah Abdul Kader DDS, MS, Inc. DBA Asana Ortho. This patient continued treatment under new ownership.</td></tr>
+  <tr><td style="padding:8px 24px 0 24px;font-style:italic;">Sincerely,</td></tr>
+  <tr><td style="padding:4px 24px 0 24px;"><img src="{{assets_dir}}/signature.png" width="74" height="48"/></td></tr>
+  <tr><td style="padding:4px 24px 0 24px;font-weight:bold;">Dr. Nourah Abdul Kader, DMD, MS</td></tr>
+  <tr><td style="padding:2px 24px 0 24px;color:#5b7f75;font-size:9pt;">Founder and Orthodontist</td></tr>
+</table>
+
+<table width="100%" cellpadding="0" cellspacing="0" style="background-color:#12332a;margin-top:8px;">
+  <tr>
+    <td style="padding:10px 24px;color:#cfe3d8;font-size:8.5pt;">{{clinic_address}}</td>
+    <td style="padding:10px 24px;text-align:right;color:#cfe3d8;font-size:8.5pt;">T: {{clinic_phone}} &nbsp;|&nbsp; F: {{clinic_fax}} &nbsp;|&nbsp; {{clinic_website}}</td>
+  </tr>
+</table>
+
+</body></html>"""
+
 DEFAULT_TEMPLATES += [
+    {
+        "key": "receipt_document",
+        "name": "Payment Receipt (document)",
+        "subject": "FSA / HSA RECEIPT",
+        "html_body": RECEIPT_DOCUMENT_HTML,
+    },
     {
         "key": "financial_acknowledgement_form",
         "name": "Financial Acknowledgement Form (document)",

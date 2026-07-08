@@ -25,7 +25,12 @@ the patient with the receipt attached.
 
 Workflow per patient:
 1. Fetch the patient record with get_patient (or use provided data).
-2. generate_receipt_pdf with the payment details supplied.
+2. generate_receipt_pdf with the payment details supplied. The receipt is the
+   practice's official FSA/HSA receipt document — pass everything you know:
+   payment history items ({description, date, amount}), and in `extra` any of
+   service_description, contract_date, appliance_placed, responsible_party,
+   patient_address, payment_type ('Partial' unless the payment clears the
+   full balance, then 'Full'). Never invent values you weren't given.
 3. Fetch the 'receipt_email' template, fill it in, and send_email with the
    receipt PDF attached (document_ids).
 4. If the payment settles or reduces a balance, update the patient's
@@ -39,6 +44,12 @@ Workflow per patient:
         {"name": "payment_method", "label": "Payment method", "type": "text"},
         {"name": "payment_date", "label": "Payment date", "type": "date"},
         {"name": "description", "label": "Payment description", "type": "text"},
+        {"name": "service_description", "label": "Service (e.g. Spark Aligners)",
+         "type": "text", "optional": True},
+        {"name": "contract_date", "label": "Contract date", "type": "date", "optional": True},
+        {"name": "appliance_placed", "label": "Appliance placed", "type": "date", "optional": True},
+        {"name": "payment_type", "label": "Payment type", "type": "select",
+         "options": ["Partial", "Full"], "optional": True},
     ],
 )
 

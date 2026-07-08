@@ -60,13 +60,62 @@ def _register(kind: str, title: str, path, patient_id=None, patient_name=None,
     return doc
 
 
+def _next_receipt_no() -> str:
+    """Sequential per-month numbering matching the practice's format,
+    e.g. AO-202607-0108."""
+    ym = datetime.now().strftime("%Y%m")
+    seq = db.documents.count_documents(
+        {"kind": "receipt", "meta.receipt_no": {"$regex": f"-{ym}-"}}) + 1
+    return f"{config.RECEIPT_PREFIX}-{ym}-{seq:04d}"
+
+
+def _items_rows_html(items: list) -> str:
+    """Payment-history rows injected at {{items_rows}} in the receipt
+    template: {description, date, amount} per row."""
+    cell = "padding:5px 12px;border-bottom:1px solid #e5e7e3;font-size:10pt;"
+    rows = []
+    for item in items:
+        rows.append(
+            f'<tr><td style="{cell}">{item.get("description", "Payment")}</td>'
+            f'<td style="{cell}">{item.get("date", "") or "—"}</td>'
+            f'<td style="{cell}text-align:right;">{_money(item.get("amount", 0))}</td></tr>')
+    return "".join(rows)
+
+
 def generate_receipt(patient_name: str, items: list, amount_paid: float,
                      payment_method: str = "", payment_date: str = "",
                      balance_due: float = 0.0, notes: str = "",
-                     patient_id: str = None, run_id: str = None) -> dict:
-    """items: list of {description, amount}."""
-    receipt_no = f"RCPT-{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
+                     patient_id: str = None, run_id: str = None,
+                     extra: dict | None = None) -> dict:
+    """items: list of {description, amount, date?}. extra: additional values
+    for the receipt template (service_description, contract_date,
+    appliance_placed, responsible_party, patient_address, payment_type...)."""
+    receipt_no = _next_receipt_no()
     path = config.STORAGE_DIR / f"{receipt_no}.pdf"
+
+    receipt_items = items or [{"description": "Payment received",
+                               "date": payment_date, "amount": amount_paid}]
+    context = {
+        "receipt_no": receipt_no,
+        "patient_name": patient_name,
+        "responsible_party": (extra or {}).get("responsible_party") or patient_name,
+        "payment_type": (extra or {}).get("payment_type") or "Partial",
+        "items_rows": _items_rows_html(receipt_items),
+        "total_amount_paid": _money(amount_paid),
+        "amount_paid": _money(amount_paid),
+        "balance_due": _money(balance_due),
+        "payment_method": payment_method,
+        "payment_date": payment_date,
+        "notes": notes,
+        **{k: v for k, v in (extra or {}).items() if v not in (None, "")},
+    }
+    if _render_template_pdf("receipt_document", context, path):
+        return _register("receipt", f"Receipt {receipt_no} — {patient_name}", path,
+                         patient_id=patient_id, patient_name=patient_name,
+                         run_id=run_id,
+                         meta={"receipt_no": receipt_no, "amount_paid": amount_paid,
+                               "balance_due": balance_due,
+                               "rendered_from": "receipt_document template"})
     pdf = SimpleDocTemplate(str(path), pagesize=LETTER,
                             topMargin=0.7 * inch, bottomMargin=0.7 * inch)
     el = []
@@ -144,30 +193,35 @@ def _fill_placeholders(html: str, context: dict) -> str:
     return _PLACEHOLDER.sub(sub, html)
 
 
-def _render_html_form(form_type: str, patient_name: str, fields: dict,
-                      form_no: str, path) -> bool:
-    """Render the user's HTML document template to PDF. Returns False when no
-    template exists or rendering fails (caller falls back to reportlab)."""
-    tpl = db.templates.find_one({"key": f"{form_type}_form"}, {"_id": 0})
+def _clinic_context() -> dict:
+    return {
+        "clinic_name": config.CLINIC_NAME,
+        "clinic_legal_name": config.CLINIC_LEGAL_NAME,
+        "clinic_address": config.CLINIC_ADDRESS,
+        "clinic_phone": config.CLINIC_PHONE,
+        "clinic_fax": config.CLINIC_FAX,
+        "clinic_email": config.CLINIC_EMAIL,
+        "clinic_website": config.CLINIC_WEBSITE,
+        "clinic_tin": config.CLINIC_TIN,
+        "assets_dir": str(config.ASSETS_DIR),
+        "date": datetime.now(timezone.utc).strftime("%m/%d/%Y"),
+    }
+
+
+def _render_template_pdf(template_key: str, context: dict, path) -> bool:
+    """Render a document template from the templates collection to PDF.
+    Returns False when no template exists or rendering fails (callers fall
+    back to the built-in reportlab layout)."""
+    tpl = db.templates.find_one({"key": template_key}, {"_id": 0})
     if not tpl or not tpl.get("html_body"):
         return False
     try:
         from xhtml2pdf import pisa
     except ImportError:
-        logger.warning("xhtml2pdf not installed — using built-in form layout.")
+        logger.warning("xhtml2pdf not installed — using built-in layout.")
         return False
 
-    context = {
-        **fields,
-        "patient_name": patient_name,
-        "form_no": form_no,
-        "date": datetime.now(timezone.utc).strftime("%B %d, %Y"),
-        "clinic_name": config.CLINIC_NAME,
-        "clinic_address": config.CLINIC_ADDRESS,
-        "clinic_phone": config.CLINIC_PHONE,
-        "clinic_email": config.CLINIC_EMAIL,
-    }
-    html = _fill_placeholders(tpl["html_body"], context)
+    html = _fill_placeholders(tpl["html_body"], {**_clinic_context(), **context})
     try:
         with open(path, "wb") as fh:
             result = pisa.CreatePDF(html, dest=fh)
@@ -175,10 +229,17 @@ def _render_html_form(form_type: str, patient_name: str, fields: dict,
             raise RuntimeError(f"{result.err} rendering error(s)")
         return True
     except Exception as exc:
-        logger.warning("HTML form template for %s failed to render (%s) — "
-                       "using built-in layout.", form_type, exc)
+        logger.warning("Document template %s failed to render (%s) — using "
+                       "built-in layout.", template_key, exc)
         path.unlink(missing_ok=True)
         return False
+
+
+def _money(value) -> str:
+    try:
+        return f"${float(value):,.2f}"
+    except (TypeError, ValueError):
+        return str(value or "—")
 
 
 def generate_form(form_type: str, patient_name: str, fields: dict,
@@ -191,7 +252,8 @@ def generate_form(form_type: str, patient_name: str, fields: dict,
               f"{datetime.now().strftime('%Y%m%d')}-{uuid.uuid4().hex[:6].upper()}"
     path = config.STORAGE_DIR / f"{form_no}.pdf"
 
-    if _render_html_form(form_type, patient_name, fields, form_no, path):
+    form_context = {**fields, "patient_name": patient_name, "form_no": form_no}
+    if _render_template_pdf(f"{form_type}_form", form_context, path):
         return _register(form_type,
                          f"{FORM_TITLES[form_type].title()} {form_no} — {patient_name}",
                          path, patient_id=patient_id, patient_name=patient_name,

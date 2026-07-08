@@ -3,13 +3,15 @@ connection settings."""
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+import anthropic
+from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 import config
 from database import db, mongo_ok
 from integrations import mailer, zoho
+from services import template_builder
 
 router = APIRouter(tags=["resources"])
 
@@ -35,6 +37,21 @@ def update_template(key: str, body: TemplateUpdate):
     if result.matched_count == 0:
         raise HTTPException(404, "Template not found")
     return db.templates.find_one({"key": key}, {"_id": 0})
+
+
+@router.post("/templates/{key}/build-from-examples")
+def build_template_from_examples(key: str,
+                                 files: list[UploadFile] = File(...),
+                                 instructions: str = Form("")):
+    """Upload example files (HTML / screenshots / PDFs / text) and have the
+    Template Builder agent draft this template from them."""
+    payload = [(f.filename, f.file.read(), f.content_type or "") for f in files]
+    try:
+        return template_builder.build_from_examples(key, payload, instructions)
+    except template_builder.TemplateBuilderError as exc:
+        raise HTTPException(400, str(exc))
+    except anthropic.APIError as exc:
+        raise HTTPException(502, f"Anthropic API error: {exc}")
 
 
 # ------------------------------- Outbox -----------------------------------

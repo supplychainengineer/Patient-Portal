@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Save, Upload } from "lucide-react";
+import { Save, Upload, Wand2 } from "lucide-react";
 import { api, errMessage } from "../api";
-import { Button, Card, Field, inputCls, Notice } from "../components/Ui";
+import { Button, Card, Field, inputCls, Modal, Notice } from "../components/Ui";
 
 export default function Templates() {
   const [templates, setTemplates] = useState([]);
@@ -9,6 +9,7 @@ export default function Templates() {
   const [notice, setNotice] = useState(null);
   const [busy, setBusy] = useState(false);
   const fileInput = useRef(null);
+  const [builder, setBuilder] = useState(null); // {files: File[], instructions}
 
   const importHtml = (event) => {
     const file = event.target.files?.[0];
@@ -34,6 +35,27 @@ export default function Templates() {
       setActive(r.data[0] || null);
     }).catch(() => {});
   }, []);
+
+  const buildFromExamples = async () => {
+    setBusy(true);
+    setNotice(null);
+    try {
+      const form = new FormData();
+      builder.files.forEach((f) => form.append("files", f));
+      form.append("instructions", builder.instructions || "");
+      const r = await api.post(`/templates/${active.key}/build-from-examples`, form,
+                               { timeout: 600000 });
+      setActive(r.data);
+      setTemplates(templates.map((t) => (t.key === r.data.key ? r.data : t)));
+      setBuilder(null);
+      setNotice({ tone: "ok",
+                  text: "Template built from your examples — review the preview below, tweak if needed, then Save." });
+    } catch (e) {
+      setNotice({ tone: "error", text: errMessage(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const save = async () => {
     setBusy(true);
@@ -97,6 +119,10 @@ export default function Templates() {
                 <Button variant="secondary" onClick={() => fileInput.current?.click()}>
                   <Upload size={14} /> Import HTML file
                 </Button>
+                <Button variant="secondary"
+                        onClick={() => setBuilder({ files: [], instructions: "" })}>
+                  <Wand2 size={14} /> Build from examples
+                </Button>
                 <input ref={fileInput} type="file" accept=".html,.htm,text/html"
                        className="hidden" onChange={importHtml} />
               </div>
@@ -110,6 +136,41 @@ export default function Templates() {
           </Card>
         )}
       </div>
+
+      {builder && active && (
+        <Modal title={`Build "${active.name}" from examples`} onClose={() => setBuilder(null)}>
+          <Notice tone="info">
+            Upload examples of this communication — HTML files, screenshots
+            (PNG/JPG), PDFs or text. The Template Builder agent studies them,
+            reproduces the design and inserts the right placeholders. The
+            result lands in the editor for you to review and tweak.
+          </Notice>
+          <div className="mt-4">
+            <Field label="Example files (up to 6)">
+              <input type="file" multiple
+                     accept=".html,.htm,.txt,.md,.png,.jpg,.jpeg,.gif,.webp,.pdf"
+                     className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-lg
+                                file:border-0 file:bg-brand-50 file:px-3 file:py-2
+                                file:text-brand-800 file:font-medium hover:file:bg-brand-100"
+                     onChange={(e) => setBuilder({ ...builder, files: [...e.target.files] })} />
+            </Field>
+            {builder.files.length > 0 && (
+              <p className="text-xs text-slate-500 -mt-1 mb-3">
+                {builder.files.map((f) => f.name).join(", ")}
+              </p>
+            )}
+            <Field label="Instructions (optional)"
+                   hint="e.g. 'Use the first file for layout and the PDF for wording' or 'Keep the payment table exactly as shown'">
+              <textarea className={inputCls} rows={3} value={builder.instructions}
+                        onChange={(e) => setBuilder({ ...builder, instructions: e.target.value })} />
+            </Field>
+            <Button onClick={buildFromExamples} disabled={busy || builder.files.length === 0}>
+              <Wand2 size={14} />
+              {busy ? "Agent is studying your examples..." : "Build template"}
+            </Button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

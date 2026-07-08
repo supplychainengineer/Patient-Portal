@@ -12,10 +12,17 @@ load_dotenv(ROOT_DIR / ".env")
 # ---------------------------------------------------------------------------
 # Practice identity (used on receipts, forms and emails)
 # ---------------------------------------------------------------------------
-CLINIC_NAME = os.environ.get("CLINIC_NAME", "Your Clinic Name")
-CLINIC_ADDRESS = os.environ.get("CLINIC_ADDRESS", "123 Clinic Street, City")
-CLINIC_PHONE = os.environ.get("CLINIC_PHONE", "+1 (000) 000-0000")
-CLINIC_EMAIL = os.environ.get("CLINIC_EMAIL", "billing@example.com")
+CLINIC_NAME = os.environ.get("CLINIC_NAME", "Asana Ortho")
+CLINIC_LEGAL_NAME = os.environ.get("CLINIC_LEGAL_NAME",
+                                   "Nourah Abdul Kader DMD MS Inc (DBA Asana Ortho)")
+CLINIC_ADDRESS = os.environ.get("CLINIC_ADDRESS", "591 San Pablo Ave, Albany CA 94706")
+CLINIC_PHONE = os.environ.get("CLINIC_PHONE", "(510) 525-1772")
+CLINIC_FAX = os.environ.get("CLINIC_FAX", "(510) 525-3157")
+CLINIC_EMAIL = os.environ.get("CLINIC_EMAIL", "billing@asanaortho.com")
+CLINIC_WEBSITE = os.environ.get("CLINIC_WEBSITE", "www.asanaortho.com")
+CLINIC_TIN = os.environ.get("CLINIC_TIN", "327315267")
+RECEIPT_PREFIX = os.environ.get("RECEIPT_PREFIX", "AO")
+ASSETS_DIR = Path(os.environ.get("ASSETS_DIR", str(Path(__file__).parent / "assets")))
 
 # ---------------------------------------------------------------------------
 # MongoDB  >>> CONNECT: set MONGO_URL + DB_NAME <<<
